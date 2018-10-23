@@ -48,6 +48,34 @@ def plot_pie_chart(df, column, save = False):
 
     plt.close()
 
+#
+# # bubble plot
+# def plot_bubble_chart(df, column, save = False):
+#
+#     selected_categories = df.groupby([df.columns[0]])['Total Search'].sum().reset_index().sort_values('Total Search').tail(12)[df.columns[0]]
+#     df = df[df[df.columns[0]].isin(selected_categories)]
+#
+#     fig = sns.relplot(x="Total Search", y=column, size="Total Search", hue="Total Search",
+#         sizes=(1000, 10000), data=df, height=8, aspect=12/8, legend = False)
+#     bbox_props = dict(boxstyle="round", fc="w", ec="0.5", alpha=0.6)
+#     for line in range(0,df.shape[0]):
+#          plt.text(df["Total Search"].iloc[line], df[column].iloc[line], df[df.columns[0]].iloc[line],
+#             bbox=bbox_props, horizontalalignment='left', size='large', color='black', fontsize = 20)
+#     title = column + ' vc Total Search by ' + category
+#     plt.xlim(0, df['Total Search'].max()*1.1)
+#     plt.ylim(0, df[column].max()*1.1)
+#     x = np.linspace(0, df['Total Search'].max()*1.1, df['Total Search'].max()*1.1)
+#     y = [df[column].mean()] * len(x)
+#     plt.plot(x, y, linewidth = 2, color = 'red')
+#     plt.title(title, loc = 'center', y=1.08, fontsize = 25)
+#
+#     if save:
+#         saved_path = os.path.join(plot_dir, title).replace(' ', '-')
+#         fig.savefig(saved_path, dpi=200, bbox_inches="tight")
+#     else:
+#         plt.show()
+#
+#     plt.close()
 
 data_path = 'data/Glassdoor_Jobs_Data.csv'
 plot_dir = 'plot'
@@ -57,8 +85,124 @@ jobs_df = pd.read_csv(data_path, encoding = "ISO-8859-1")
 print(jobs_df.shape)
 print(jobs_df.isnull().sum())
 print(jobs_df.nunique())
+print(jobs_df.describe())
 jobs_df.head()
 
+# Data Cleaning ================================================================
+jobs_df = jobs_df.rename(columns = {'Comapny Description': 'Company Description'})
+
+# Industry
+# Two companies categorize itself under 2 industries
+df = jobs_df.drop_duplicates(['Company', 'Industry']).groupby(['Company'])['Industry'].count().reset_index()
+companies_more_than_1_industry = list(df[df['Industry'] > 1]['Company'])
+companies_more_than_1_industry
+jobs_df[jobs_df['Company'] == companies_more_than_1_industry[0]]['Industry'].value_counts()
+jobs_df[jobs_df['Industry'] == 'Lending']['Company'].unique()
+citibank_industry = jobs_df[jobs_df['Company'] == companies_more_than_1_industry[0]]['Industry'].value_counts().index[1]
+jobs_df['Industry'] = jobs_df['Industry'].replace('Lending', citibank_industry)
+jobs_df['Company'] = jobs_df['Company'].replace('Citibank NA', 'Citibank')
+jobs_df[jobs_df['Company'] == 'Citibank NA'].shape
+
+jobs_df[jobs_df['Company'] == companies_more_than_1_industry[1]]['Industry'].value_counts()
+jobs_df[jobs_df['Industry'] == 'Wholesale']['Company'].unique()
+jobs_df[jobs_df['Industry'] == 'Biotech & Pharmaceuticals']['Company'].unique()
+jobs_df['Industry'] = jobs_df['Industry'].replace('Wholesale', 'Biotech & Pharmaceuticals')
+
+jobs_df['Industry'] = jobs_df['Industry'].fillna('NA')
+
+# Company: Take out NAs
+jobs_df = jobs_df[~pd.isna(jobs_df['Company'])]
+
+# Company Description: Concatenate description for company that has more than one company description
+df = jobs_df.drop_duplicates(['Company', 'Company Description']).groupby(['Company'])['Company Description'].count().reset_index()
+companies_more_than_1_desc = list(df[df['Company Description'] > 1]['Company'])
+companies_more_than_1_desc
+desc_concat = ' '.join(jobs_df[jobs_df['Company'] == companies_more_than_1_desc[0]]['Company Description'].value_counts().index)
+jobs_df[jobs_df['Company'] == companies_more_than_1_desc[0]]
+jobs_df.loc[jobs_df['Company'] == companies_more_than_1_desc[0], 'Company Description'] = desc_concat
+
+jobs_df['Company Description'] = jobs_df['Company Description'].fillna('NA')
+
+# Job Description: NAs
+jobs_df['Job Description'] = jobs_df['Job Description'].fillna('NA')
+
+# Head Quarter
+df = jobs_df.drop_duplicates(['Company', 'Head Quarter']).groupby(['Company'])['Head Quarter'].count().reset_index()
+companies_more_than_1_hq = list(df[df['Head Quarter'] > 1]['Company'])
+companies_more_than_1_hq
+for company in companies_more_than_1_hq:
+    hq = jobs_df[jobs_df['Company'] == company]['Head Quarter'].value_counts().index[0]
+    jobs_df.loc[jobs_df['Company'] == company, 'Head Quarter'] = hq
+
+jobs_df['Head Quarter'] = jobs_df['Head Quarter'].fillna('NA')
+
+# Company Size: NAs
+df = jobs_df.drop_duplicates(['Company', 'Company Size']).groupby(['Company'])['Company Size'].count().reset_index()
+companies_more_than_1_size = list(df[df['Company Size'] > 1]['Company'])
+for company in companies_more_than_1_size:
+    size = jobs_df[jobs_df['Company'] == company]['Company Size'].value_counts().index[0]
+    jobs_df.loc[jobs_df['Company'] == company, 'Company Size'] = size
+
+jobs_df = jobs_df[~pd.isna(jobs_df['Company Size'])]
+sizes = list(jobs_df['Company Size'].value_counts().index)
+sizes_map = {size: int(sum([int(size.split()[0]), int(size.split()[2])]) / 2) for size in sizes[1:]}
+sizes_map[sizes[0]] = 25000
+jobs_df['Company Size (Num)'] = jobs_df['Company Size'].map(sizes_map)
+
+# Company Revenue
+revenues = list(jobs_df['Company Revenue'].value_counts().index)
+revenue_map = {revenue: int(sum([int(revenue.split()[0][1:]), int(revenue.split()[2][1:])]) / 2) * 10**(6 if revenue.split()[-2] == 'million' else 9) for revenue in revenues[1:-1]}
+revenue_map[revenues[0]] = 25 * 10**9
+revenue_map[revenues[-1]] = 0.5 * 10**6
+jobs_df['Company Revenue (Num)'] = jobs_df['Company Revenue'].map(revenue_map)
+
+
+# Overall Rating
+df = jobs_df.drop_duplicates(['Company', 'Overall Rating']).groupby(['Company'])['Overall Rating'].count().reset_index()
+companies_more_than_1_rating = list(df[df['Overall Rating'] > 1]['Company'])
+companies_more_than_1_rating
+for company in companies_more_than_1_rating:
+    rating = jobs_df[jobs_df['Company'] == company]['Overall Rating'].value_counts().index[0]
+    jobs_df.loc[jobs_df['Company'] == company, 'Overall Rating'] = rating
+
+company_no_rating = list(set(jobs_df[pd.isna(jobs_df['Overall Rating'])]['Company']))
+for company in company_no_rating:
+    ratings = list(jobs_df[jobs_df['Company'] == company]['Overall Rating'].value_counts().index)
+    if len(ratings) != 0:
+        jobs_df.loc[jobs_df['Company'] == company, 'Overall Rating'] = ratings[0]
+rating_mode = jobs_df['Overall Rating'].mode()[0]
+jobs_df['Overall Rating'].fillna(rating_mode, inplace = True)
+
+sns.distplot(jobs_df['Overall Rating'])
+jobs_df.loc[jobs_df['Overall Rating'] == -1, 'Overall Rating'] = rating_mode
+
+# Founded Year
+sns.distplot(jobs_df['Founded Year'])
+df = jobs_df.drop_duplicates(['Company', 'Founded Year']).groupby(['Company'])['Founded Year'].count().reset_index()
+companies_more_than_1_year = list(df[df['Founded Year'] > 1]['Company'])
+for company in companies_more_than_1_year:
+    years = list(jobs_df[jobs_df['Company'] == company]['Founded Year'].value_counts().index)
+    if 0 in years:
+        years.remove(0)
+    jobs_df.loc[jobs_df['Company'] == company, 'Founded Year'] = years[0]
+
+jobs_df['Founded Year'].replace(0, np.nan, inplace = True)
+year_mode = jobs_df['Founded Year'].mode()[0]
+jobs_df['Founded Year'].fillna(year_mode, inplace = True)
+
+
+# Data Plotting ================================================================
+# Univariate
 plot_pie_chart(jobs_df, 'Company Size')
 plot_pie_chart(jobs_df, 'Company Size', save = True)
 plot_pie_chart(jobs_df, 'Company Revenue')
+plot_pie_chart(jobs_df, 'Company Revenue', save = True)
+
+sns.distplot(jobs_df['Overall Rating'])
+sns.distplot(jobs_df['Founded Year'])
+
+
+# Bivariate 
+# map for Head Quarter
+sns.catplot(x="Company Size", y="Company Revenue (Num)", kind="box", dodge=False, data=jobs_df, height=8, aspect=12/8)
+sns.catplot(x="Company Size (Num)", y="Company Revenue (Num)", data=jobs_df, height=8, aspect=12/8)
