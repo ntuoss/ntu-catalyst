@@ -48,6 +48,32 @@ def plot_pie_chart(df, column, save = False):
 
     plt.close()
 
+def plot_box(df, column, save = False):
+
+    temp = df[column].value_counts()
+    temp = pd.DataFrame({'labels': temp.index,
+                       'values': temp.values
+                      })
+    values = temp['values']
+    labels = temp['labels']
+
+    fig = plt.figure(figsize=(12, 12), facecolor='w')
+    bbox_props = dict(boxstyle="round", fc="w", ec="0.5", alpha=0.6)
+    patches = plt.pie(values, labels=labels, autopct='%1.1f%%', startangle=90, pctdistance = 0.8,
+        textprops={'fontsize': 20, 'bbox': bbox_props})
+    plt.axis('equal')
+    title = 'Distribution of ' + column
+    plt.title(title, loc = 'center', y=1.08, fontsize = 25)
+    plt.tight_layout()
+
+    if save:
+        saved_path = os.path.join(plot_dir, title).replace(' ', '-')
+        fig.savefig(saved_path, dpi=200, bbox_inches="tight")
+    else:
+        plt.show()
+
+    plt.close()
+
 #
 # # bubble plot
 # def plot_bubble_chart(df, column, save = False):
@@ -201,8 +227,50 @@ plot_pie_chart(jobs_df, 'Company Revenue', save = True)
 sns.distplot(jobs_df['Overall Rating'])
 sns.distplot(jobs_df['Founded Year'])
 
+sns.catplot(x="Company Size", kind="count", data=jobs_df, order=list(jobs_df[~pd.isna(jobs_df['Company Size (Num)'])].sort_values('Company Size (Num)')['Company Size'].unique()), height=8, aspect=12/8)
+sns.catplot(x="Company Revenue", kind="count", data=jobs_df, order=list(jobs_df[~pd.isna(jobs_df['Company Revenue (Num)'])].sort_values('Company Revenue (Num)')['Company Revenue'].unique()), height=12, aspect=12/8)
+sns.catplot(x="Company Revenue", kind="count", data=jobs_df, order=list(jobs_df.sort_values('Company Revenue (Num)')['Company Revenue'].unique()), height=8, aspect=12/8)
 
-# Bivariate 
-# map for Head Quarter
-sns.catplot(x="Company Size", y="Company Revenue (Num)", kind="box", dodge=False, data=jobs_df, height=8, aspect=12/8)
-sns.catplot(x="Company Size (Num)", y="Company Revenue (Num)", data=jobs_df, height=8, aspect=12/8)
+jobs_df.columns
+Index(['Job Title', 'Company', 'Salary 50th Percentile',
+       'Salary 10th Percentile', 'Salary 90th Percentile', 'Overall Rating',
+       'Company Description', 'Founded Year', 'Head Quarter', 'Company Size',
+       'Industry', 'Company Revenue', 'Job Description', 'Company Size (Num)',
+       'Company Revenue (Num)'],
+      dtype='object')
+
+# Bivariate
+sns.catplot(x="Company Size", y="Company Revenue (Num)", order=list(jobs_df.sort_values('Company Size (Num)')['Company Size'].unique()), kind="box", data=jobs_df, height=8, aspect=12/8)
+
+sns.catplot(x="Company Size", y="Salary 50th Percentile", order=list(jobs_df.sort_values('Company Size (Num)')['Company Size'].unique()), kind="box", data=jobs_df, height=8, aspect=12/8)
+sns.catplot(x="Company Size", y="Salary 10th Percentile", order=list(jobs_df.sort_values('Company Size (Num)')['Company Size'].unique()), kind="box", data=jobs_df, height=8, aspect=12/8)
+sns.catplot(x="Company Size", y="Salary 90th Percentile", order=list(jobs_df.sort_values('Company Size (Num)')['Company Size'].unique()), kind="box", data=jobs_df, height=8, aspect=12/8)
+
+df = pd.concat([jobs_df[['Company Size', 'Salary 10th Percentile']].rename(columns = {'Salary 10th Percentile': 'Salary'}), jobs_df[['Company Size', 'Salary 50th Percentile']].rename(columns = {'Salary 50th Percentile': 'Salary'}), jobs_df[['Company Size', 'Salary 90th Percentile']].rename(columns = {'Salary 90th Percentile': 'Salary'})])
+df['Salary Type'] = ['Salary 10th Percentile'] * jobs_df.shape[0] + ['Salary 50th Percentile'] * jobs_df.shape[0] + ['Salary 90th Percentile'] * jobs_df.shape[0]
+
+
+fig = sns.catplot(x="Company Size", y="Salary", hue = 'Salary Type', order=list(jobs_df.sort_values('Company Size (Num)')['Company Size'].unique()), kind="box", data=df, height=8, aspect=12/8)
+title = "Salary Range for Company with Different Size"
+plt.title(title, loc = 'center', y=1.08, fontsize = 25)
+saved_path = os.path.join(plot_dir, title).replace(' ', '-')
+fig.savefig(saved_path, dpi=200, bbox_inches="tight")
+
+
+# Plot Word Cloud
+from PIL import Image
+from wordcloud import WordCloud, STOPWORDS, ImageColorGenerator
+
+text = " ".join(review for review in jobs_df['Job Description'])
+print ("There are {} words in the combination of all review.".format(len(text)))
+
+# Create stopword list:
+stopwords = set(STOPWORDS)
+# stopwords.update([])
+wordcloud = WordCloud(width=1600, height=800, stopwords=stopwords, background_color="white").generate(text)
+plt.figure( figsize=(20,10), facecolor='w')
+plt.imshow(wordcloud)
+plt.axis("off")
+plt.tight_layout(pad=0)
+# plt.show()
+plt.savefig('wordcloud.png', bbox_inches='tight')
